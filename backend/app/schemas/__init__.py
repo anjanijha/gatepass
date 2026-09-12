@@ -1,4 +1,4 @@
-"""from pydantic import BaseModel
+from pydantic import BaseModel
 
 
 class UserCreate(BaseModel):
@@ -23,5 +23,3 @@ class VisitorCreate(BaseModel):
     visitor_mobile: str
     purpose: str
     flat_id: int
-
-"""

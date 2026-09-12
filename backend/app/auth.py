@@ -6,8 +6,8 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from pwdlib import PasswordHash
-from .database import SessionLocal, get_db
-from .models import User
+from app.db.session import SessionLocal, get_db
+from app.models.user import User
 
 password_hash = PasswordHash.recommended()
 

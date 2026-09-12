@@ -1,13 +1,19 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
-from .database import Base, engine, SessionLocal, get_db
-from . import models
-from .schemas import UserCreate, FlatCreate, VisitorCreate,LoginRequest
+from app.db.base import Base
+from app.db.session import engine, SessionLocal, get_db
+from app.models.user import User
+from app.models.flat import Flat
+from app.models.visitor import VisitorRequest
+from app.schemas.user import UserCreate
+from app.schemas.flat import FlatCreate
+from app.schemas.visitor import VisitorCreate
+from app.schemas.auth import LoginRequest
 
-from .auth import hash_password, verify_password, create_access_token, get_current_user, require_role
-
-
+from app.core.dependencies import get_current_user, require_role 
+from app.core.security import hash_password, verify_password, create_access_token
+from app.api.routes import auth
 
 Base.metadata.create_all(bind=engine)
 
@@ -17,7 +23,30 @@ app = FastAPI(
     description="Backend API for Society Gate visitor approval system",
     version="1.0.0",
 )
+app.include_router(auth.router)
 
+@app.get("/auth/me")
+def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "mobile": current_user.mobile,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+    }
+
+@app.get("/admin/test")
+def admin_test(
+    current_user: User = Depends(
+        require_role("ADMIN")
+    ),
+):
+    return {
+        "message": "Admin access granted",
+        "user_id": current_user.id,
+    }
 
 
 # -----------------------------
@@ -48,8 +77,8 @@ def create_user(
     db: Session = Depends(get_db)
 ):
     existing_user = (
-        db.query(models.User)
-        .filter(models.User.mobile == user.mobile)
+        db.query(User)
+        .filter(User.mobile == user.mobile)
         .first()
     )
 
@@ -58,7 +87,7 @@ def create_user(
             "message": "User already exists"
         }
 
-    new_user = models.User(
+    new_user = User(
         name=user.name,
         mobile=user.mobile,
         password_hash=hash_password(user.password),
@@ -84,7 +113,7 @@ def create_flat(
     flat: FlatCreate,
     db: Session = Depends(get_db)
 ):
-    new_flat = models.Flat(
+    new_flat = Flat(
         flat_number=flat.flat_number,
         resident_id=flat.resident_id
     )
@@ -112,7 +141,7 @@ def create_visitor(
         require_role("GUARD")
     )
 ):
-    new_visitor = models.VisitorRequest(
+    new_visitor = VisitorRequest(
         visitor_name=visitor.visitor_name,
         visitor_mobile=visitor.visitor_mobile,
         purpose=visitor.purpose,
@@ -142,9 +171,9 @@ def get_visitors(
     current_user: dict = Depends(get_current_user)
 ):
     visitors = (
-        db.query(models.VisitorRequest)
+        db.query(VisitorRequest)
         .filter(
-            models.VisitorRequest.flat_id == flat_id
+            VisitorRequest.flat_id == flat_id
         )
         .all()
     )
@@ -165,9 +194,9 @@ def approve_visitor(
     )
 ):
     visitor = (
-        db.query(models.VisitorRequest)
+        db.query(VisitorRequest)
         .filter(
-            models.VisitorRequest.id == visitor_id
+            VisitorRequest.id == visitor_id
         )
         .first()
     )
@@ -202,9 +231,9 @@ def decline_visitor(
     )
 ):
     visitor = (
-        db.query(models.VisitorRequest)
+        db.query(VisitorRequest)
         .filter(
-            models.VisitorRequest.id == visitor_id
+            VisitorRequest.id == visitor_id
         )
         .first()
     )
@@ -225,7 +254,7 @@ def decline_visitor(
         "status": visitor.status
     }
 
-
+""""
 # -----------------------------
 # Create Login API
 # -----------------------------
@@ -272,3 +301,4 @@ def login(
         "user_id": user.id,
         "role": user.role
     }
+"""
