@@ -58,39 +58,72 @@ export function AuthProvider({
     restoreSession();
   }, []);
 
-  const restoreSession = async () => {
-    try {
-      const token = await getAccessToken();
+const restoreSession = async () => {
+  try {
+    console.log("AUTH: Starting session restore...");
 
-      if (!token) {
-        setUser(null);
-        return;
-      }
+    const token = await getAccessToken();
 
-      /*
-       * Token exists.
-       * Ask backend whether it is still valid.
-       */
-      const currentUser = await getCurrentUser();
+    console.log(
+      "AUTH: Token exists:",
+      !!token
+    );
 
-      setUser(currentUser);
-    } catch (error) {
+    if (!token) {
       console.log(
-        "Session restore failed:",
-        error
+        "AUTH: No token found"
       );
 
-      /*
-       * Token is invalid/expired.
-       * Remove it so the user has to login again.
-       */
-      await removeAccessToken();
-
       setUser(null);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    console.log(
+      "AUTH: Calling /auth/me..."
+    );
+
+    const currentUser = await getCurrentUser();
+
+    console.log(
+      "AUTH: /auth/me success:",
+      currentUser
+    );
+
+    setUser(currentUser);
+
+  } catch (error: any) {
+
+    console.log(
+      "AUTH: Session restore FAILED"
+    );
+
+    console.log(
+      "AUTH ERROR:",
+      error?.response?.status
+    );
+
+    console.log(
+      "AUTH ERROR DATA:",
+      error?.response?.data
+    );
+
+    console.log(
+      "AUTH ERROR MESSAGE:",
+      error?.message
+    );
+
+    await removeAccessToken();
+
+    setUser(null);
+
+  } finally {
+    console.log(
+      "AUTH: Restore finished"
+    );
+
+    setLoading(false);
+  }
+};
 
   /*
    * Login

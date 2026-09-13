@@ -45,3 +45,12 @@ def update_visitor(
     db.refresh(visitor)
 
     return visitor
+
+def get_all_visitors(
+    db: Session,
+):
+    return (
+        db.query(VisitorRequest)
+        .order_by(VisitorRequest.id.desc())
+        .all()
+    )

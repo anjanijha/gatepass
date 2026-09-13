@@ -13,8 +13,11 @@ from app.core.dependencies import get_current_user
 from app.services.visitor_service import (
     create_visitor_request,
     get_flat_visitors,
+    get_security_visitors,
     approve_visitor,
     decline_visitor,
+    check_in_visitor,
+    check_out_visitor,
 )
 
 
@@ -84,6 +87,22 @@ def get_visitors(
         )
 
     return visitors
+
+@router.get(
+    "/security",
+    response_model=list[VisitorResponse],
+)
+def get_security_visitor_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "SECURITY":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security personnel can view visitor requests",
+        )
+
+    return get_security_visitors(db)
 
 @router.put(
     "/{visitor_id}/approve",
@@ -163,6 +182,86 @@ def decline(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Visitor request has already been processed",
+        )
+
+    return visitor
+
+@router.put(
+    "/{visitor_id}/check-in",
+    response_model=VisitorResponse,
+)
+def check_in(
+    visitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "SECURITY":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security personnel can check in visitors",
+        )
+
+    visitor, error = check_in_visitor(
+        db=db,
+        visitor_id=visitor_id,
+    )
+
+    if error == "VISITOR_NOT_FOUND":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Visitor not found",
+        )
+
+    if error == "VISITOR_NOT_APPROVED":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Visitor must be approved before check-in",
+        )
+
+    if error == "VISITOR_ALREADY_CHECKED_IN":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Visitor is already checked in",
+        )
+
+    return visitor
+
+@router.put(
+    "/{visitor_id}/check-out",
+    response_model=VisitorResponse,
+)
+def check_out(
+    visitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "SECURITY":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security personnel can check out visitors",
+        )
+
+    visitor, error = check_out_visitor(
+        db=db,
+        visitor_id=visitor_id,
+    )
+
+    if error == "VISITOR_NOT_FOUND":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Visitor not found",
+        )
+
+    if error == "VISITOR_NOT_CHECKED_IN":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Visitor must be checked in before check-out",
+        )
+
+    if error == "VISITOR_ALREADY_CHECKED_OUT":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Visitor is already checked out",
         )
 
     return visitor

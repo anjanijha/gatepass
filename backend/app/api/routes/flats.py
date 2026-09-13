@@ -9,6 +9,7 @@ from app.schemas.flat import (
 from app.services.flat_service import register_flat,get_my_flats
 from app.core.dependencies import get_current_user
 from app.models.user import User
+from app.models.flat import Flat
 
 
 router = APIRouter(
@@ -64,4 +65,24 @@ def get_my_flats_endpoint(
     return get_my_flats(
         db=db,
         resident_id=current_user.id,
+    )
+
+@router.get(
+    "/for-visitor",
+    response_model=list[FlatResponse],
+)
+def get_flats_for_visitor(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "SECURITY":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only security can view flats for visitor requests",
+        )
+
+    return (
+        db.query(Flat)
+        .order_by(Flat.flat_number)
+        .all()
     )

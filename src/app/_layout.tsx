@@ -6,6 +6,8 @@ import { useColorScheme } from "react-native";
 
 SplashScreen.preventAutoHideAsync();
 const colorScheme = useColorScheme();
+
+
 export default function RootLayout() {
   return (
         <ThemeProvider
@@ -32,11 +34,25 @@ export default function RootLayout() {
             headerShown: false,
           }}
         />
-
         <Stack.Screen
           name="resident/index"
           options={{
             title: "Resident Dashboard",
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="security/index"
+          options={{
+            title: "Security Dashboard",
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="security/create-visitor"
+          options={{
+            title: "Create Visitor",
             headerShown: false,
           }}
         />

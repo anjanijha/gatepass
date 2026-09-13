@@ -1,79 +1,43 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 
 import { useAuth } from "../../auth/auth-context";
-import {
-  Flat,
-  getMyFlats,
-} from "../../auth/auth-service";
 
 import {
-  approveVisitor,
-  declineVisitor,
-  getVisitors,
-  Visitor,
+    checkInVisitor,
+    checkOutVisitor,
+    getSecurityVisitors,
+    Visitor,
 } from "../../api/visitor-service";
 
-export default function ResidentDashboard() {
-  const {
-    user,
-    loading,
-    logout,
-  } = useAuth();
+export default function SecurityDashboard() {
+  const { user, loading, logout } = useAuth();
 
-  const [flats, setFlats] = useState<Flat[]>([]);
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loadingVisitors, setLoadingVisitors] = useState(true);
   const [processingVisitorId, setProcessingVisitorId] =
     useState<number | null>(null);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/auth/login");
-    }
-  }, [loading, user]);
-
-  useEffect(() => {
-    if (!loading && user) {
-      loadVisitors();
-    }
-  }, [loading, user]);
-
-  async function loadVisitors() {
+  const loadVisitors = useCallback(async () => {
     try {
       setLoadingVisitors(true);
 
-      const myFlats = await getMyFlats();
+      const result = await getSecurityVisitors();
 
-      setFlats(myFlats);
-
-      if (myFlats.length === 0) {
-        setVisitors([]);
-        return;
-      }
-
-      const allVisitors: Visitor[] = [];
-
-      for (const flat of myFlats) {
-        const flatVisitors = await getVisitors(flat.id);
-
-        allVisitors.push(...flatVisitors);
-      }
-
-      setVisitors(allVisitors);
-    } catch (error) {
+      setVisitors(result);
+    } catch (error: any) {
       console.error(
         "Failed to load visitors:",
-        error
+        error?.response?.data || error
       );
 
       Alert.alert(
@@ -83,55 +47,13 @@ export default function ResidentDashboard() {
     } finally {
       setLoadingVisitors(false);
     }
-  }
+  }, []);
 
-  async function handleApprove(
-    visitorId: number
-  ) {
-    try {
-      setProcessingVisitorId(visitorId);
-
-      await approveVisitor(visitorId);
-
-      await loadVisitors();
-    } catch (error) {
-      console.error(
-        "Approve visitor failed:",
-        error
-      );
-
-      Alert.alert(
-        "Error",
-        "Unable to approve visitor."
-      );
-    } finally {
-      setProcessingVisitorId(null);
+  useEffect(() => {
+    if (user?.role === "SECURITY") {
+      loadVisitors();
     }
-  }
-
-  async function handleDecline(
-    visitorId: number
-  ) {
-    try {
-      setProcessingVisitorId(visitorId);
-
-      await declineVisitor(visitorId);
-
-      await loadVisitors();
-    } catch (error) {
-      console.error(
-        "Decline visitor failed:",
-        error
-      );
-
-      Alert.alert(
-        "Error",
-        "Unable to decline visitor."
-      );
-    } finally {
-      setProcessingVisitorId(null);
-    }
-  }
+  }, [user, loadVisitors]);
 
   async function handleLogout() {
     try {
@@ -139,10 +61,7 @@ export default function ResidentDashboard() {
 
       router.replace("/auth/login");
     } catch (error) {
-      console.error(
-        "Logout failed:",
-        error
-      );
+      console.error("Logout failed:", error);
 
       Alert.alert(
         "Logout Failed",
@@ -151,9 +70,69 @@ export default function ResidentDashboard() {
     }
   }
 
+  async function handleCheckIn(
+    visitorId: number
+  ) {
+    try {
+      setProcessingVisitorId(visitorId);
+
+      await checkInVisitor(visitorId);
+
+      await loadVisitors();
+
+      Alert.alert(
+        "Success",
+        "Visitor checked in successfully."
+      );
+    } catch (error: any) {
+      console.error(
+        "Check-in failed:",
+        error?.response?.data || error
+      );
+
+      const message =
+        error?.response?.data?.detail ||
+        "Unable to check in visitor.";
+
+      Alert.alert("Check-In Failed", message);
+    } finally {
+      setProcessingVisitorId(null);
+    }
+  }
+
+  async function handleCheckOut(
+    visitorId: number
+  ) {
+    try {
+      setProcessingVisitorId(visitorId);
+
+      await checkOutVisitor(visitorId);
+
+      await loadVisitors();
+
+      Alert.alert(
+        "Success",
+        "Visitor checked out successfully."
+      );
+    } catch (error: any) {
+      console.error(
+        "Check-out failed:",
+        error?.response?.data || error
+      );
+
+      const message =
+        error?.response?.data?.detail ||
+        "Unable to check out visitor.";
+
+      Alert.alert("Check-Out Failed", message);
+    } finally {
+      setProcessingVisitorId(null);
+    }
+  }
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.center}>
         <ActivityIndicator size="large" />
 
         <Text style={styles.loadingText}>
@@ -163,8 +142,14 @@ export default function ResidentDashboard() {
     );
   }
 
-  if (!user) {
-    return null;
+  if (!user || user.role !== "SECURITY") {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>
+          Unauthorized access
+        </Text>
+      </View>
+    );
   }
 
   function renderVisitor({
@@ -177,7 +162,6 @@ export default function ResidentDashboard() {
 
     return (
       <View style={styles.visitorCard}>
-
         <Text style={styles.visitorName}>
           {item.visitor_name}
         </Text>
@@ -187,11 +171,11 @@ export default function ResidentDashboard() {
         </Text>
 
         <Text style={styles.info}>
-          Purpose: {item.purpose}
+          Flat: {item.flat_number}
         </Text>
 
         <Text style={styles.info}>
-          Flat: {item.flat_number}
+          Purpose: {item.purpose}
         </Text>
 
         <Text
@@ -201,66 +185,65 @@ export default function ResidentDashboard() {
               ? styles.pending
               : item.status === "APPROVED"
               ? styles.approved
+              : item.status === "CHECKED_IN"
+              ? styles.checkedIn
+              : item.status === "CHECKED_OUT"
+              ? styles.checkedOut
               : styles.declined,
           ]}
         >
           {item.status}
         </Text>
 
-        {item.status === "PENDING" && (
-          <View style={styles.actionRow}>
-
-            <Pressable
-              style={[
-                styles.actionButton,
-                styles.approveButton,
-              ]}
-              disabled={isProcessing}
-              onPress={() =>
-                handleApprove(item.id)
-              }
-            >
+        {item.status === "APPROVED" && (
+          <Pressable
+            style={styles.checkInButton}
+            disabled={isProcessing}
+            onPress={() =>
+              handleCheckIn(item.id)
+            }
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
               <Text style={styles.buttonText}>
-                {isProcessing
-                  ? "Processing..."
-                  : "Approve"}
+                CHECK IN
               </Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.actionButton,
-                styles.declineButton,
-              ]}
-              disabled={isProcessing}
-              onPress={() =>
-                handleDecline(item.id)
-              }
-            >
-              <Text style={styles.buttonText}>
-                Decline
-              </Text>
-            </Pressable>
-
-          </View>
+            )}
+          </Pressable>
         )}
 
+        {item.status === "CHECKED_IN" && (
+          <Pressable
+            style={styles.checkOutButton}
+            disabled={isProcessing}
+            onPress={() =>
+              handleCheckOut(item.id)
+            }
+          >
+            {isProcessing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                CHECK OUT
+              </Text>
+            )}
+          </Pressable>
+        )}
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-
       <View style={styles.header}>
-
         <View>
           <Text style={styles.title}>
             Society Gate
           </Text>
 
           <Text style={styles.subtitle}>
-            Resident Dashboard
+            Security Dashboard
           </Text>
         </View>
 
@@ -272,11 +255,9 @@ export default function ResidentDashboard() {
             Logout
           </Text>
         </Pressable>
-
       </View>
 
       <View style={styles.welcomeCard}>
-
         <Text style={styles.welcome}>
           Welcome, {user.name} 👋
         </Text>
@@ -288,12 +269,18 @@ export default function ResidentDashboard() {
         <Text style={styles.info}>
           Role: {user.role}
         </Text>
-
-        <Text style={styles.info}>
-          Flats: {flats.length}
-        </Text>
-
       </View>
+
+      <Pressable
+        style={styles.primaryButton}
+        onPress={() =>
+          router.push("/security/create-visitor")
+        }
+      >
+        <Text style={styles.buttonText}>
+          + Create Visitor Request
+        </Text>
+      </Pressable>
 
       <Text style={styles.sectionTitle}>
         Visitor Requests
@@ -309,16 +296,14 @@ export default function ResidentDashboard() {
         </View>
       ) : visitors.length === 0 ? (
         <View style={styles.emptyCard}>
-
           <Text style={styles.emptyTitle}>
             No Visitor Requests
           </Text>
 
           <Text style={styles.emptyText}>
             There are currently no visitor
-            requests for your flat.
+            requests.
           </Text>
-
         </View>
       ) : (
         <FlatList
@@ -333,7 +318,6 @@ export default function ResidentDashboard() {
           showsVerticalScrollIndicator={false}
         />
       )}
-
     </View>
   );
 }
@@ -346,13 +330,6 @@ const styles = StyleSheet.create({
     paddingTop: 55,
   },
 
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-
   center: {
     flex: 1,
     justifyContent: "center",
@@ -363,6 +340,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: "#555555",
+  },
+
+  errorText: {
+    fontSize: 18,
+    color: "#D93025",
+    fontWeight: "600",
   },
 
   header: {
@@ -379,21 +362,21 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: "#666666",
     marginTop: 4,
   },
 
   welcomeCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
     padding: 22,
-    marginBottom: 22,
+    borderRadius: 16,
     elevation: 3,
+    marginBottom: 18,
   },
 
   welcome: {
-    fontSize: 24,
+    fontSize: 23,
     fontWeight: "bold",
     marginBottom: 16,
     color: "#111111",
@@ -405,11 +388,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
+  primaryButton: {
+    backgroundColor: "#1976D2",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 22,
+  },
+
+  logoutButton: {
+    backgroundColor: "#D93025",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+
+  logoutText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+
   sectionTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 12,
     color: "#111111",
+    marginBottom: 12,
   },
 
   visitorCard: {
@@ -430,7 +434,7 @@ const styles = StyleSheet.create({
   status: {
     alignSelf: "flex-start",
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 14,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -445,29 +449,32 @@ const styles = StyleSheet.create({
     color: "#188038",
   },
 
+  checkedIn: {
+    color: "#1976D2",
+  },
+
+  checkedOut: {
+    color: "#555555",
+  },
+
   declined: {
     color: "#D93025",
   },
 
-  actionRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-
-  actionButton: {
-    flex: 1,
-    height: 48,
+  checkInButton: {
+    height: 50,
+    backgroundColor: "#188038",
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  approveButton: {
-    backgroundColor: "#188038",
-  },
-
-  declineButton: {
-    backgroundColor: "#D93025",
+  checkOutButton: {
+    height: 50,
+    backgroundColor: "#555555",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   buttonText: {
@@ -486,6 +493,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: "bold",
+    color: "#111111",
     marginBottom: 8,
   },
 
@@ -496,19 +504,6 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingBottom: 30,
-  },
-
-  logoutButton: {
-    backgroundColor: "#1976D2",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-
-  logoutText: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
-    fontSize: 14,
+    paddingBottom: 40,
   },
 });
