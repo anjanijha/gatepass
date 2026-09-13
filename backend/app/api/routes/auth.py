@@ -1,59 +1,57 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.schemas.auth import LoginRequest
+from app.services.auth_service import login_user
+from app.core.dependencies import get_current_user
 from app.models.user import User
-from app.schemas import LoginRequest
-from app.core.security import (
-    verify_password,
-    create_access_token
-)
 
 
 router = APIRouter(
     prefix="/auth",
-    tags=["Authentication"]
+    tags=["Authentication"],
 )
 
 
 @router.post("/login")
 def login(
-    login_data: LoginRequest,
-    db: Session = Depends(get_db)
+    request: LoginRequest,
+    db: Session = Depends(get_db),
 ):
+    result = login_user(
+        db=db,
+        mobile=request.mobile,
+        password=request.password,
+    )
 
-    user = (
-        db.query(User)
-        .filter(
-            User.mobile == login_data.mobile
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid mobile number or password",
         )
-        .first()
-    )
 
-    if not user:
-        return {
-            "message": "Invalid mobile or password"
-        }
-
-    if not user.password_hash:
-        return {
-            "message": "Password is not configured"
-        }
-
-    if not verify_password(
-        login_data.password,
-        user.password_hash
-    ):
-        return {
-            "message": "Invalid mobile or password"
-        }
-
-    access_token = create_access_token(
-        user_id=user.id
-    )
+    user = result["user"]
 
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user_id": user.id
+        "access_token": result["access_token"],
+        "token_type": result["token_type"],
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "mobile": user.mobile,
+            "role": user.role,
+        },
+    }
+
+@router.get("/me")
+def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "mobile": current_user.mobile,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
     }

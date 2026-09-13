@@ -1,40 +1,78 @@
-import {
-    Alert,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
-
+import { router } from "expo-router";
 import { useState } from "react";
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useAuth } from '../../auth/auth-context';
+
 
 export default function LoginScreen() {
+  const { login } = useAuth();
+
   const [mobile, setMobile] = useState("");
-
-  const handleSendOTP = () => {
-    if (mobile.length !== 10) {
-      Alert.alert(
-        "Invalid Number",
-        "Please enter a 10-digit mobile number."
-      );
-      return;
-    }
-
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
-      Alert.alert(
-        "Invalid Number",
-        "Please enter a valid Indian mobile number."
-      );
-      return;
-    }
-
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+const handleLogin = async () => {
+  if (!/^[6-9]\d{9}$/.test(mobile)) {
     Alert.alert(
-      "Success",
-      `OTP will be sent to ${mobile}`
+      'Invalid Number',
+      'Please enter a valid Indian mobile number.'
     );
-  };
+    return;
+  }
 
+  if (!password) {
+    Alert.alert(
+      'Password Required',
+      'Please enter your password.'
+    );
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    const user = await login(
+      mobile,
+      password
+    );
+
+    console.log('Authenticated user:', user);
+
+    router.replace('/resident');
+
+  } catch (error: any) {
+    console.error(
+      'Login error:',
+      error
+    );
+
+    if (error.response?.status === 401) {
+      Alert.alert(
+        'Login Failed',
+        'Invalid mobile number or password.'
+      );
+    } else if (error.response?.status === 403) {
+      Alert.alert(
+        'Account Disabled',
+        'Your account is inactive.'
+      );
+    } else {
+      Alert.alert(
+        'Connection Error',
+        'Unable to connect to the server.'
+      );
+    }
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <View style={styles.container}>
 
@@ -54,14 +92,29 @@ export default function LoginScreen() {
         maxLength={10}
         value={mobile}
         onChangeText={setMobile}
+        editable={!loading}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Enter password"
+        placeholderTextColor="#777777"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+        editable={!loading}
       />
 
       <Pressable
-        style={styles.button}
-        onPress={handleSendOTP}
+        style={[
+          styles.button,
+          loading && styles.buttonDisabled,
+        ]}
+        onPress={handleLogin}
+        disabled={loading}
       >
         <Text style={styles.buttonText}>
-          Send OTP
+          {loading ? "Logging in..." : "Login"}
         </Text>
       </Pressable>
 
@@ -101,6 +154,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#000000",
     backgroundColor: "#FFFFFF",
+    marginBottom: 16,
   },
 
   button: {
@@ -109,7 +163,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 4,
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   buttonText: {
